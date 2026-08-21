@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="referrer" content="no-referrer">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Snake Battle - Powered by RDM</title>
+    <style>
+        body { margin: 0; padding: 0; background-color: #111; color: white; font-family: 'Arial Black', Arial, sans-serif; overflow: hidden; background-size: cover; background-position: center; transition: background-image 0.5s ease, background-color 0.5s ease; }
+
+        #start-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.9); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; cursor: pointer; }
+        #start-overlay h1 { color: #0f0; font-size: 40px; text-shadow: 0 0 20px #0f0; text-align: center; }
+
+        #game-view { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; overflow: hidden; cursor: grab; z-index: 1;}
+        #game-view:active { cursor: grabbing; }
+        #game-zoom-area { width: 100%; height: 100%; position: absolute; top: 0; left: 0; transform-origin: center center; transition: transform 0.1s linear; }
+
+        #gameCanvas { position: absolute; top: 0; left: 0; z-index: 1; }
+        #arena { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 5; pointer-events: none; }
+
+        .follower-container { position: absolute; display: flex; flex-direction: column; align-items: center; transform-origin: center center; will-change: transform; transition: transform 0.05s linear; }
+        .follower-ball { width: 80px; height: 80px; border-radius: 50%; border: 4px solid #222; background: #222; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 15px rgba(255,255,255,0.4); position: relative; transition: all 0.2s ease;}
+        .follower-ball img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; position: relative; z-index: 2; }
+        .life-ring { position: absolute; top: -6px; left: -6px; right: -6px; bottom: -6px; border-radius: 50%; z-index: 1; pointer-events: none; transition: background 0.2s linear; }
+
+        @keyframes chomp {
+            0%, 100% { clip-path: polygon(100% 74%, 50% 50%, 100% 21%, 100% 0, 0 0, 0 100%, 100% 100%); }
+            50% { clip-path: polygon(100% 50%, 50% 50%, 100% 50%, 100% 0, 0 0, 0 100%, 100% 100%); }
+        }
+        .pacman-mode { animation: chomp 0.2s infinite; background-color: yellow !important; border-color: yellow !important; }
+
+        .name-tag { font-size: 18px; background: rgba(0,0,0,0.8); padding: 4px 10px; border-radius: 8px; margin-bottom: 5px; white-space: nowrap; border: 1px solid rgba(255,255,255,0.2); }
+
+        /* ANIMAÇÃO PACMAN */
+        @keyframes chomp {
+            0%, 100% { clip-path: polygon(100% 74%, 50% 50%, 100% 21%, 100% 0, 0 0, 0 100%, 100% 100%); }
+            50% { clip-path: polygon(100% 50%, 50% 50%, 100% 50%, 100% 0, 0 0, 0 100%, 100% 100%); }
+        }
+        .pacman-mode { animation: chomp 0.2s infinite; background-color: yellow !important; border-color: yellow !important; }
+
+        .name-tag { font-size: 18px; background: rgba(0,0,0,0.8); padding: 4px 10px; border-radius: 8px; margin-bottom: 5px; white-space: nowrap; border: 1px solid rgba(255,255,255,0.2); }
+        #gameTimer { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); font-size: 60px; font-weight: bold; color: white; text-shadow: 0 0 15px #b200ff; z-index: 100; pointer-events: none;}
+        #status { position: absolute; top: 10px; left: 10px; background: rgba(0, 0, 0, 0.7); padding: 5px 10px; border-radius: 5px; color: yellow; z-index: 100; font-family: Arial;}
+
+        #podium-screen { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); z-index: 2000; display: none; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(10px); }
+        #podium-screen h1 { color: gold; font-size: 60px; text-shadow: 0 0 25px gold; margin-bottom: 40px; }
+        #podium-container { display: flex; align-items: flex-end; justify-content: center; gap: 40px; }
+        .podium-item { display: flex; flex-direction: column; align-items: center; background: rgba(0,0,0,0.6); padding: 20px; border-radius: 15px; border-bottom: 5px solid; position: relative; }
+        .podium-item img { border-radius: 50%; object-fit: cover; margin-bottom: 15px; }
+        .podium-name { font-size: 24px; color: #fff; max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 10px; }
+        .podium-power { font-size: 18px; color: #ff3300; font-weight: bold; background: rgba(255,51,0,0.2); padding: 5px 15px; border-radius: 8px; border: 1px solid rgba(255,51,0,0.5); text-align: center; line-height: 1.5;}
+        .p1 { order: 2; transform: translateY(-50px); border-color: gold; box-shadow: 0 10px 40px rgba(255,215,0,0.2); }
+        .p1 img { border: 5px solid gold; width: 160px; height: 160px; box-shadow: 0 0 30px gold; }
+        .p1 .podium-name { font-size: 30px; font-weight: bold; color: gold; }
+        .crown { font-size: 60px; position: absolute; top: -55px; text-shadow: 0 0 15px gold; }
+        .p2 { order: 1; border-color: silver; box-shadow: 0 10px 30px rgba(192,192,192,0.1); }
+        .p2 img { border: 4px solid silver; width: 130px; height: 130px; box-shadow: 0 0 15px silver; }
+        .p3 { order: 3; border-color: #cd7f32; box-shadow: 0 10px 30px rgba(205,127,50,0.1); }
+        .p3 img { border: 4px solid #cd7f32; width: 120px; height: 120px; box-shadow: 0 0 15px #cd7f32; }
+        #auto-restart-msg { margin-top: 40px; font-size: 26px; color: #0f0; display: none; }
+
+        /* CSS DO RANKING DAAZ */
+        #ranking-view { display: none; width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; flex-direction: column; align-items: center; justify-content: center; z-index: 800; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px); }
+        .ranking-title { font-size: 4rem; font-weight: 900; margin-bottom: 10px; text-transform: uppercase; text-shadow: 0 0 20px rgba(255,255,255,0.5); display: flex; align-items: center; gap: 20px; }
+        .ranking-subtitle { font-size: 1.5rem; font-weight: bold; color: #f39c12; margin-bottom: 25px; background: rgba(0,0,0,0.8); padding: 5px 20px; border-radius: 20px; border: 1px solid #f39c12;}
+        .ranking-list { background: rgba(20, 25, 35, 0.9); border: 2px solid #444; border-radius: 20px; width: 80%; max-width: 800px; padding: 20px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 20px 50px rgba(0,0,0,0.8); max-height: 60vh; overflow-y: auto;}
+        .rank-item { display: flex; align-items: center; background: rgba(255,255,255,0.05); padding: 15px 25px; border-radius: 12px; border-left: 5px solid transparent; transition: transform 0.2s; }
+        .rank-pos { font-size: 2rem; font-weight: 900; width: 50px; text-align: center; color: #888; }
+        .rank-item.pos-1 { border-left-color: gold; background: linear-gradient(90deg, rgba(255,215,0,0.2) 0%, rgba(0,0,0,0) 100%); }
+        .rank-item.pos-1 .rank-pos { color: gold; }
+        .rank-item.pos-2 { border-left-color: silver; }
+        .rank-item.pos-2 .rank-pos { color: silver; }
+        .rank-item.pos-3 { border-left-color: #cd7f32; }
+        .rank-item.pos-3 .rank-pos { color: #cd7f32; }
+        .rank-name { flex: 1; font-size: 1.8rem; font-weight: bold; margin-left: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .rank-score { font-size: 2rem; font-weight: 900; color: #f39c12; }
+    </style>
+    </style>
+</head>
+<body>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+
+        if (urlParams.has('u') && urlParams.has('p')) {
+            localStorage.setItem('rdm_user', urlParams.get('u'));
+            localStorage.setItem('rdm_perfil', urlParams.get('p'));
+        }
+
+        if (urlParams.get('bg') === 'transparente') {
+            document.body.style.backgroundColor = 'transparent';
+            document.body.style.backgroundImage = 'none';
+        }
+
+        window.rdmUser = localStorage.getItem('rdm_user_tiktok') || localStorage.getItem('rdm_user');
+        window.rdmPerfil = localStorage.getItem('rdm_perfil');
+
+        if (!window.rdmUser || !window.rdmPerfil) {
+            document.body.innerHTML = "<div style='display:flex; flex-direction:column; justify-content:center; align-items:center; height:100vh; background:#000;'><h1 style='color:#ef4444; text-shadow:0 0 20px #ef4444;'>ACESSO NEGADO</h1><p style='color:#ccc; font-size:20px;'>Você precisa estar logado na RDM Studio para jogar.</p></div>";
+            window.stop();
+        }
+        fetch("https://torre-de-controle-rdm.onrender.com/", { mode: 'no-cors' }).catch(() => {});
+    </script>
+
+    <div id="start-overlay"><h1>▶️ CLIQUE AQUI PARA INICIAR A ARENA</h1></div>
+    <audio id="bgMusic" loop preload="auto"><source src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3" type="audio/mpeg"></audio>
+    <audio id="eatSfx" preload="auto"><source src="https://actions.google.com/sounds/v1/cartoon/pop.ogg" type="audio/ogg"></audio>
+
+    <div id="status">Aguardando conexão...</div>
+    <div id="gameTimer">00:00</div>
+
+    <button onclick="document.getElementById('hud-janela-painel').style.display='flex'" style="position: absolute; top: 15px; right: 15px; z-index: 1500; background: #3498db; color: white; border: 2px solid #fff; padding: 10px 15px; font-weight: bold; border-radius: 5px; cursor: pointer; box-shadow: 0 0 10px rgba(52, 152, 219, 0.8); opacity: 0.5; transition: opacity 0.2s;" onmouseenter="this.style.opacity=1" onmouseleave="this.style.opacity=0.5">⚙️ PAINEL</button>
+
+    <div id="hud-janela-painel" style="position: absolute; top: 60px; right: 15px; width: calc(100vw - 30px); max-width: 450px; height: 85vh; background: rgba(13, 17, 23, 0.95); border: 2px solid #3498db; border-radius: 10px; z-index: 2000; display: none; flex-direction: column; overflow: hidden; box-shadow: 0 0 20px rgba(0,0,0,0.8);">
+        <div style="background: #3498db; padding: 10px; font-weight: bold; display: flex; justify-content: space-between; align-items: center;">
+            <span>⚙️ Controle Host</span>
+            <div style="display: flex; gap: 5px;">
+                <button onclick="window.open('host.html', '_blank'); document.getElementById('hud-janela-painel').style.display='none';" style="background: #2c3e50; border: none; color: white; padding: 5px 10px; cursor: pointer; border-radius: 5px; font-weight: bold;">↗️ Abrir Aba</button>
+                <button onclick="document.getElementById('hud-janela-painel').style.display='none'" style="background: #ff4757; border: none; color: white; padding: 5px 15px; cursor: pointer; border-radius: 5px; font-weight: bold;">X</button>
+            </div>
+        </div>
+        <iframe src="host.html" style="width: 100%; height: 100%; border: none;"></iframe>
+    </div>
+
+    <div id="game-view">
+        <div id="game-zoom-area">
+            <canvas id="gameCanvas"></canvas>
+            <div id="arena"></div>
+        </div>
+    </div>
+
+    <div id="podium-screen">
+        <h1>👑 MAIORES ABATEDORES 👑</h1>
+        <div id="podium-container"></div>
+        <div id="auto-restart-msg">Reiniciando em <span id="restart-count">10</span>s...</div>
+    </div>
+
+    <!-- TELA DE RANKING DAAZ -->
+    <div id="ranking-view">
+        <div class="ranking-title" id="ranking-title">🏆 TOP JOGADORES 🏆</div>
+        <div class="ranking-subtitle" id="ranking-subtitle">PERÍODO</div>
+        <div class="ranking-list" id="ranking-list"></div>
+    </div>
+
+    <script>
+        let WIDTH = window.innerWidth; let HEIGHT = window.innerHeight;
+        const HEAD_RADIUS = 40; const TAIL_RADIUS = 25;
+        const ICON_TAP = "https://cdn-icons-png.flaticon.com/512/833/833472.png";
+        const ICON_GIFT_FALLBACK = "https://cdn-icons-png.flaticon.com/512/3134/3134375.png";
+
+        const canvas = document.getElementById("gameCanvas"); const ctx = canvas.getContext("2d");
+        canvas.width = WIDTH; canvas.height = HEIGHT;
+        const arena = document.getElementById("arena"); const timerEl = document.getElementById("gameTimer");
+        const bgMusic = document.getElementById("bgMusic"); const eatSfx = document.getElementById("eatSfx");
+
+        let zoomLevel = 1.0;
+        let translateX = 0; let translateY = 0;
+        let isDragging = false; let startX, startY;
+        const gameView = document.getElementById('game-view');
+        const zoomArea = document.getElementById('game-zoom-area');
+
+        function updateTransform() { zoomArea.style.transform = `translate(${translateX}px, ${translateY}px) scale(${zoomLevel})`; }
+
+        gameView.addEventListener('mousedown', (e) => {
+            isDragging = true; startX = e.clientX - translateX; startY = e.clientY - translateY;
+        });
+        window.addEventListener('mousemove', (e) => {
+            if (!isDragging) return; translateX = e.clientX - startX; translateY = e.clientY - startY; updateTransform();
+        });
+        window.addEventListener('mouseup', () => { isDragging = false; });
+        window.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            zoomLevel = e.deltaY < 0 ? Math.min(zoomLevel + 0.1, 3.0) : Math.max(zoomLevel - 0.1, 0.4);
+            updateTransform();
+        }, { passive: false });
+
+        let snakes = {}; let jailedUsers = {}; let imageCache = {}; let lastResetFlag = 0;
+        let particles = []; let floatingTexts = [];
+        let isGameActive = false;
+        let autoRestartConfig = false; let restartTimerInterval = null;
+        let configPowers = { x2: "rosa", speed: "tiktok", shield: "chapeu" };
+        let timeLeftAtual = 0;
+
+        // SE ABERTO PELO OBS, PULA A TELA DE CLIQUE E INICIA MUDO
+        if (urlParams.get('bg') === 'transparente') {
+            document.getElementById('start-overlay').style.display = 'none';
+            isGameActive = true;
+        }
+
+        document.getElementById('start-overlay').addEventListener('click', function() {
+            this.style.display = 'none'; bgMusic.volume = 0.3; eatSfx.volume = 1.0;
+            bgMusic.play().catch(e => console.log(e)); isGameActive = true;
+        });
+
+        function getCachedImage(url) {
+            if (!url) return null; if (imageCache[url]) return imageCache[url];
+            const img = new Image(); img.src = url; imageCache[url] = img; return img;
+        }
+
+        class Particle {
+            constructor(x, y, color) {
+                this.x = x; this.y = y; this.color = color;
+                this.vx = (Math.random() - 0.5) * 20; this.vy = (Math.random() - 0.5) * 20;
+                this.life = 1.0; this.decay = Math.random() * 0.05 + 0.02; this.size = Math.random() * 8 + 4;
+            }
+            update() { this.x += this.vx; this.y += this.vy; this.life -= this.decay; }
+            draw(ctx) { if (this.life <= 0) return; ctx.globalAlpha = Math.max(0, this.life); ctx.fillStyle = this.color; ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1.0; }
+        }
+
+        class FloatingText {
+            constructor(text, x, y, color) { this.text = text; this.x = x; this.y = y; this.color = color; this.life = 1.0; this.vy = -2; }
+            update() { this.y += this.vy; this.life -= 0.02; }
+            draw(ctx) { if (this.life <= 0) return; ctx.globalAlpha = Math.max(0, this.life); ctx.fillStyle = this.color; ctx.font = "bold 30px Arial Black"; ctx.strokeStyle = "black"; ctx.lineWidth = 4; ctx.strokeText(this.text, this.x - 20, this.y); ctx.fillText(this.text, this.x - 20, this.y); ctx.globalAlpha = 1.0; }
+        }
+
+        function createExplosion(x, y, color, text) {
+            for (let i = 0; i < 40; i++) particles.push(new Particle(x, y, color));
+            if (text) floatingTexts.push(new FloatingText(text, x, y, color));
+        }
+
+        // --- SISTEMA DE RANKING DAAZ ---
+        function checkRankingResets(rankings) {
+            const d = new Date(); const dia = d.toISOString().split('T')[0]; const mes = dia.substring(0, 7);
+            const d0 = new Date(d.getFullYear(), 0, 1); const semana = d.getFullYear() + '-W' + Math.ceil((((d - d0) / 86400000) + d0.getDay() + 1) / 7);
+            const p = { diario: dia, semanal: semana, mensal: mes, geral: 'geral' };
+            let changed = false;
+            if (rankings.id_diario !== p.diario) { rankings.diario = {vitorias:{}, kills:{}, tempo:{}}; rankings.id_diario = p.diario; changed = true; }
+            if (rankings.id_semanal !== p.semanal) { rankings.semanal = {vitorias:{}, kills:{}, tempo:{}}; rankings.id_semanal = p.semanal; changed = true; }
+            if (rankings.id_mensal !== p.mensal) { rankings.mensal = {vitorias:{}, kills:{}, tempo:{}}; rankings.id_mensal = p.mensal; changed = true; }
+            return changed;
+        }
+
+        function addRanking(categoria, nick, valor=1) {
+            try {
+                let rStr = localStorage.getItem('snakeRankings');
+                let rankings = rStr ? JSON.parse(rStr) : { id_diario: '', id_semanal: '', id_mensal: '', diario: {vitorias:{}, kills:{}, tempo:{}}, semanal: {vitorias:{}, kills:{}, tempo:{}}, mensal: {vitorias:{}, kills:{}, tempo:{}}, geral: {vitorias:{}, kills:{}, tempo:{}} };
+                checkRankingResets(rankings);
+                let safeNick = nick.replace(/[.#$\[\]\/]/g, "_");
+                ['diario', 'semanal', 'mensal', 'geral'].forEach(periodo => {
+                    if(!rankings[periodo][categoria]) rankings[periodo][categoria] = {};
+                    rankings[periodo][categoria][safeNick] = (rankings[periodo][categoria][safeNick] || 0) + valor;
+                });
+                localStorage.setItem('snakeRankings', JSON.stringify(rankings));
+            } catch(e) {}
+        }
+
+        function renderizarRankingUI(titulo, dicionarioDados, corScore, sulfixo, periodoTexto) {
+            document.getElementById('game-view').style.display = 'none';
+            document.getElementById('ranking-view').style.display = 'flex';
+            document.getElementById('ranking-title').innerHTML = titulo;
+            document.getElementById('ranking-subtitle').innerText = periodoTexto;
+
+            const lista = document.getElementById('ranking-list');
+            lista.innerHTML = '';
+
+            const arrayOrdenado = Object.entries(dicionarioDados).sort((a, b) => b[1] - a[1]).slice(0, 10);
+
+            if (arrayOrdenado.length === 0) {
+                lista.innerHTML = '<div style="text-align:center; padding: 40px; font-size: 2rem; color: #888;">Ainda não há registros!</div>';
+                return;
+            }
+
+            arrayOrdenado.forEach((item, index) => {
+                const pos = index + 1;
+                const div = document.createElement('div');
+                div.className = `rank-item pos-${pos}`;
+                let medalha = pos === 1 ? '🥇' : pos === 2 ? '🥈' : pos === 3 ? '🥉' : pos;
+                let scoreDisplay = sulfixo === 's' ? formatTime(item[1]) + ' min' : item[1] + ' ' + sulfixo;
+                div.innerHTML = `<div class="rank-pos">${medalha}</div><div class="rank-name">${item[0]}</div><div class="rank-score" style="color: ${corScore}">${scoreDisplay}</div>`;
+                lista.appendChild(div);
+            });
+        }
+
+        class Snake {
+            constructor(id, nickname, avatarUrl) {
+                this.id = id; this.nickname = nickname; this.avatarUrl = avatarUrl;
+                // Ninho alargado: Área de 120px no centro para evitar sobreposição crítica
+                this.x = (WIDTH / 2) + (Math.random() * 120 - 60);
+                this.y = (HEIGHT / 2) + (Math.random() * 120 - 60);
+                this.angle = Math.random() * Math.PI * 2;
+
+                this.spawnTime = Date.now(); // Marca o nascimento
+
+                this.baseSpeed = 4.0; this.speed = this.baseSpeed;
+                this.bodySegments = [];
+                this.color = `hsl(${Math.abs(this.hashCode(id)) % 360}, 80%, 60%)`;
+
+                this.basePower = 1; this.giftPower = 0; this.kills = 0; this.taps = 0;
+                this.lostPower = 0;
+                this.hp = 3; // Inicia com 3 de HP Base
+                this.history = []; this.spacing = 15; this.activePower = null; this.powerEndTime = 0;
+                this.lastPowerMem = 1; this.pauseEndTime = 0;
+
+                this.el = document.createElement("div"); this.el.className = "follower-container";
+                this.el.innerHTML = `<div class="name-tag">${this.nickname}</div><div class="follower-ball" id="ball-${this.id}" style="border-color: ${this.color};"><div class="life-ring" id="life-${this.id}"></div><img src="${avatarUrl}" onerror="this.style.display='none'"></div><div class="power-tag" id="power-${this.id}">Poder: 1<br>⚔️ 0</div>`;
+                arena.appendChild(this.el); this.updateHTMLElement();
+            }
+
+            hashCode(str) { let hash = 0; for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash); return hash; }
+            get power() { return Math.max(1, this.basePower + this.giftPower + Math.floor(this.kills / 5) - this.lostPower); }
+            getMaxHp() { return 3 + this.bodySegments.length; } // HP aumenta se ela crescer!
+            getEffectivePower() { return (this.activePower === 'x2' && Date.now() < this.powerEndTime) ? this.power * 2 : this.power; }
+            getEffectiveSpeed() { return (this.activePower === 'speed' && Date.now() < this.powerEndTime) ? this.baseSpeed * 2 : this.baseSpeed; }
+            hasShield() { return this.activePower === 'shield' && Date.now() < this.powerEndTime; }
+
+            applyPower(type, dur) { this.activePower = type; this.powerEndTime = Date.now() + (dur * 1000); }
+            addGift(val, pic) { this.giftPower += val; this.bodySegments.push({ url: pic }); this.updateSpeed(); this.updatePowerUI(); }
+            addTaps(amt) { this.taps += amt; while (this.taps >= 500) { this.taps -= 500; this.giftPower += 1; this.bodySegments.push({ url: ICON_TAP }); this.updateSpeed(); this.updatePowerUI(); } }
+            updateSpeed() { if (this.baseSpeed < 8) this.baseSpeed += 0.15; }
+
+            updatePowerUI() {
+                const pEl = document.getElementById(`power-${this.id}`);
+                if (pEl) {
+                    let dP = this.getEffectivePower();
+                    let x2 = this.activePower === 'x2' && Date.now() < this.powerEndTime ? ' (x2)' : '';
+                    pEl.innerHTML = `Poder: ${dP}${x2}<br>⚔️ ${this.kills}`;
+                }
+            }
+
+            update(allSnakes) {
+                let currPower = this.power;
+                if (this.lastPowerMem === 1 && currPower >= 2) {
+                    this.pauseEndTime = Date.now() + 2000;
+                    createExplosion(this.x, this.y, '#ffffff', 'EVOLUIU!');
+                }
+                this.lastPowerMem = currPower;
+
+                if (this.activePower && Date.now() > this.powerEndTime) { this.activePower = null; this.updatePowerUI(); }
+                if (Date.now() < this.pauseEndTime) { this.updateHTMLElement(); return; }
+
+                this.history.unshift({ x: this.x, y: this.y });
+                if (this.history.length > (this.bodySegments.length + 1) * this.spacing) this.history.length = (this.bodySegments.length + 1) * this.spacing;
+
+                let currentSpeed = this.getEffectiveSpeed();
+
+                // BÔNUS DE VELOCIDADE: Quem tem poder menor é mais rápido (Mínimo de vantagem para fugir)
+                if (this.power < 10) currentSpeed += (10 - this.power) * 0.2;
+
+                let targetAngle = this.angle;
+
+                let nearestPrey = null, minPreyDist = Infinity;
+                let nearestPredator = null, minPredatorDist = Infinity;
+
+                for (let otherId in allSnakes) {
+                    if (otherId === this.id) continue;
+                    let other = allSnakes[otherId];
+                    let dist = Math.hypot(other.x - this.x, other.y - this.y);
+
+                    if (dist < 500) {
+                        let mP = this.getEffectivePower(), tP = other.getEffectivePower();
+
+                        // IA PACÍFICA: mP tem que ser MAIOR que tP (> e não >=). Se ambos forem 1, eles se ignoram e passeiam!
+                        if (mP > tP && dist < minPreyDist && !other.hasShield()) { nearestPrey = other; minPreyDist = dist; }
+                        else if (mP < tP && dist < minPredatorDist && !this.hasShield()) { nearestPredator = other; minPredatorDist = dist; }
+                    }
+                }
+
+                // VANTAGEM DE TAMANHO: Cobras menores ganham bônus passivo de velocidade na engine toda
+                let speedBonus = Math.max(0, (10 - this.power) * 0.35);
+                currentSpeed += speedBonus;
+
+                if (nearestPredator) {
+                    targetAngle = Math.atan2(this.y - nearestPredator.y, this.x - nearestPredator.x);
+                    if (minPredatorDist < 150) currentSpeed *= 1.6; // Boost Adrenalina Fuga
+                } else if (nearestPrey) {
+                    targetAngle = Math.atan2(nearestPrey.y - this.y, nearestPrey.x - this.x);
+                }
+
+                this.angle = targetAngle;
+                let vx = Math.cos(this.angle) * currentSpeed;
+                let vy = Math.sin(this.angle) * currentSpeed;
+                let nextX = this.x + vx; let nextY = this.y + vy;
+
+                if (nextX < HEAD_RADIUS || nextX > WIDTH - HEAD_RADIUS) {
+                    vx *= -1;
+                    if (nearestPredator) { vx = 0; vy = (this.y > HEIGHT / 2) ? -currentSpeed : currentSpeed; }
+                }
+                if (nextY < HEAD_RADIUS || nextY > HEIGHT - HEAD_RADIUS) {
+                    vy *= -1;
+                    if (nearestPredator) { vy = 0; vx = (this.x > WIDTH / 2) ? -currentSpeed : currentSpeed; }
+                }
+
+                this.angle = Math.atan2(vy, vx);
+                this.x += Math.cos(this.angle) * currentSpeed;
+                this.y += Math.sin(this.angle) * currentSpeed;
+
+                if (this.x < HEAD_RADIUS) this.x = HEAD_RADIUS;
+                if (this.x > WIDTH - HEAD_RADIUS) this.x = WIDTH - HEAD_RADIUS;
+                if (this.y < HEAD_RADIUS) this.y = HEAD_RADIUS;
+                if (this.y > HEIGHT - HEAD_RADIUS) this.y = HEIGHT - HEAD_RADIUS;
+
+                this.updateHTMLElement();
+            }
+
+            updateHTMLElement() {
+                this.el.style.transform = `translate(${this.x - 40}px, ${this.y - 85}px)`;
+                let ball = document.getElementById(`ball-${this.id}`);
+                if(ball) {
+                    // ROTACIONA A BOCA PARA A DIREÇÃO DO MOVIMENTO E APLICA O ZOOM SE ESTIVER COMENDO
+                    let deg = this.angle * (180 / Math.PI);
+                    let scale = this.eatScale || 1.0;
+                    ball.style.transform = `rotate(${deg}deg) scale(${scale})`;
+
+                    if(Date.now() < this.pauseEndTime) ball.style.boxShadow = "0 0 40px #ffffff";
+                    else if (this.hasShield()) { ball.style.borderColor = "#00ffff"; ball.style.boxShadow = "0 0 30px #00ffff"; }
+                    else if (this.activePower === 'x2' && Date.now() < this.powerEndTime) { ball.style.borderColor = "#ff00ff"; ball.style.boxShadow = "0 0 30px #ff00ff"; }
+                    else if (this.activePower === 'speed' && Date.now() < this.powerEndTime) { ball.style.borderColor = "#00ff00"; ball.style.boxShadow = "0 0 30px #00ff00"; }
+                    else { ball.style.borderColor = this.color; ball.style.boxShadow = `0 0 15px ${this.color}`; }
+                }
+            }
+
+            drawTail(ctx) {
+                for (let i = 0; i < this.bodySegments.length; i++) {
+                    const seg = this.bodySegments[i]; const pos = this.history[(i + 1) * this.spacing];
+                    if (pos) {
+                        // DEGRADÊ: Começa em 1.0 e cai até 0.5 (50%) na última bolinha
+                        let opacity = 1.0;
+                        if (this.bodySegments.length > 1) {
+                            opacity = 1.0 - (0.5 * (i / (this.bodySegments.length - 1)));
+                        }
+
+                        ctx.save();
+                        ctx.globalAlpha = opacity;
+
+                        const img = getCachedImage(seg.url);
+                        if (img && img.complete && img.naturalWidth > 0) {
+                            ctx.beginPath(); ctx.arc(pos.x, pos.y, TAIL_RADIUS, 0, Math.PI * 2); ctx.clip();
+                            ctx.drawImage(img, pos.x - TAIL_RADIUS, pos.y - TAIL_RADIUS, TAIL_RADIUS * 2, TAIL_RADIUS * 2);
+                            ctx.lineWidth = 4; ctx.strokeStyle = this.color; ctx.stroke();
+                        } else {
+                            ctx.fillStyle = this.color; ctx.beginPath(); ctx.arc(pos.x, pos.y, TAIL_RADIUS, 0, Math.PI * 2); ctx.fill();
+                        }
+
+                        ctx.restore();
+                    }
+                }
+            }
+            triggerEatEffect() {
+                this.eatScale = 1.5; // Ativa o tamanho da mordida
+                let b = document.getElementById(`ball-${this.id}`);
+                if(b) b.classList.add("pacman-mode");
+                this.updateHTMLElement();
+
+                setTimeout(() => {
+                    this.eatScale = 1.0; // Volta ao normal
+                    let b2 = document.getElementById(`ball-${this.id}`);
+                    if(b2) b2.classList.remove("pacman-mode");
+                    if (this.el.parentNode) this.updateHTMLElement();
+                }, 400);
+            }
+            die() {
+                let tempoVivo = Math.floor((Date.now() - this.spawnTime) / 1000);
+                addRanking('tempo', this.nickname, tempoVivo); // Salva o tempo!
+                this.el.remove();
+            }
+        }
+
+        function checkCollisions() {
+            let ids = Object.keys(snakes);
+            for (let i = 0; i < ids.length; i++) {
+                for (let j = i + 1; j < ids.length; j++) {
+                    let s1 = snakes[ids[i]], s2 = snakes[ids[j]]; if (!s1 || !s2) continue;
+                    if (Date.now() < s1.pauseEndTime || Date.now() < s2.pauseEndTime) continue;
+
+                    if (Math.hypot(s1.x - s2.x, s1.y - s2.y) < (HEAD_RADIUS * 2)) {
+                        if (s1.hasShield() || s2.hasShield()) {
+                            // REPULSÃO FÍSICA: Escorrega suavemente para longe
+                            let repelAngle = Math.atan2(s1.y - s2.y, s1.x - s2.x);
+                            s1.x += Math.cos(repelAngle) * 15; s1.y += Math.sin(repelAngle) * 15;
+                            s2.x -= Math.cos(repelAngle) * 15; s2.y -= Math.sin(repelAngle) * 15;
+                            continue;
+                        }
+                        // Regra de quem pode comer: Basta ser mais forte (O modo pacífico do nível 1 ocorre na IA de fuga)
+                        let canEat = (predator, prey) => { return predator.getEffectivePower() > prey.getEffectivePower(); };
+
+                        let winner = null, loser = null;
+                        if (canEat(s1, s2)) { winner = s1; loser = s2; }
+                        else if (canEat(s2, s1)) { winner = s2; loser = s1; }
+
+                        if (winner && loser) {
+                            eatSfx.currentTime = 0; eatSfx.play().catch(e=>{});
+                            winner.triggerEatEffect();
+
+                            let pP = winner.getEffectivePower();
+                            let pT = loser.getEffectivePower();
+                            let diff = pP - pT;
+                            let damage = diff;
+
+                            // Apenas Nível 20 pra cima engole qualquer um (independente da vida da vítima) de uma vez só!
+                            if (pP >= 20) {
+                                damage = loser.hp;
+                            } else {
+                                // Nível 2 vs 1 (Diff = 1). Dano = 1. Como HP base é 3, precisa de 3 ataques.
+                                // Nível 3 vs 1 (Diff = 2). Dano = 2. Precisa de 2 ataques.
+                                damage = Math.max(1, diff);
+                            }
+
+                            loser.hp -= damage;
+
+                            // Rouba gomos da cobra pela quantidade de dano (se ela tiver)
+                            for(let k=0; k<damage; k++) {
+                                if (loser.bodySegments.length > 0) {
+                                    winner.bodySegments.push(loser.bodySegments.pop());
+                                    loser.lostPower += 1;
+                                    // Predador recupera +1 HP por pedaço roubado
+                                    winner.hp = Math.min(winner.getMaxHp(), winner.hp + 1);
+                                }
+                            }
+
+                            if (loser.hp <= 0) {
+                                // MORTE FATAL
+                                createExplosion(loser.x, loser.y, loser.color, `+1 KILL!`);
+                                addRanking('kills', winner.nickname, 1);
+                                winner.kills += 1;
+                                winner.bodySegments.push({ url: loser.avatarUrl });
+                                winner.hp = winner.getMaxHp(); // Enche a vida do vencedor ao matar
+                                winner.updatePowerUI();
+                                jailedUsers[loser.id] = true; loser.die(); delete snakes[loser.id];
+                            } else {
+                                // SOBREVIVEU E PERDEU LIFE/GOMOS
+                                createExplosion(loser.x, loser.y, '#ff9900', `-${damage} HIT!`);
+                                winner.updatePowerUI(); loser.updatePowerUI();
+
+                                // Impacto da batida (Empurrão com base no centro dos corpos)
+                                let repelAngle = Math.atan2(winner.y - loser.y, winner.x - loser.x);
+                                winner.x += Math.cos(repelAngle) * 20; winner.y += Math.sin(repelAngle) * 20;
+                                loser.x -= Math.cos(repelAngle) * 35; loser.y -= Math.sin(repelAngle) * 35;
+                            }
+                        } else {
+                            // MODO PACÍFICO E NASCIMENTO: Deslizam igual água quando se tocam
+                            let repelAngle = Math.atan2(s1.y - s2.y, s1.x - s2.x);
+                            s1.x += Math.cos(repelAngle) * 6; s1.y += Math.sin(repelAngle) * 6;
+                            s2.x -= Math.cos(repelAngle) * 6; s2.y -= Math.sin(repelAngle) * 6;
+                        }
+                    }
+                }
+            }
+        }
+
+        const pScr = document.getElementById("podium-screen"), pCon = document.getElementById("podium-container"), aMsg = document.getElementById("auto-restart-msg"), rCnt = document.getElementById("restart-count");
+        function showPodium() {
+            isGameActive = false; pScr.style.display = "flex";
+            let ss = Object.values(snakes).sort((a, b) => b.kills !== a.kills ? b.kills - a.kills : b.getEffectivePower() - a.getEffectivePower());
+
+            if(ss.length > 0 && ss[0]) addRanking('vitorias', ss[0].nickname, 1); // Salva a Vitória!
+            ss.forEach(s => { addRanking('tempo', s.nickname, Math.floor((Date.now() - s.spawnTime)/1000)); }); // Salva o tempo dos sobreviventes
+
+            let html = "";
+            if(ss[1]) html += `<div class="podium-item p2"><img src="${ss[1].avatarUrl}"><div class="podium-name">🥈 ${ss[1].nickname}</div><div class="podium-power">Poder: ${ss[1].power}<br>⚔️ Kills: ${ss[1].kills}</div></div>`;
+            if(ss[0]) html += `<div class="podium-item p1"><div class="crown">👑</div><img src="${ss[0].avatarUrl}"><div class="podium-name">${ss[0].nickname}</div><div class="podium-power">Poder: ${ss[0].power}<br>⚔️ Kills: ${ss[0].kills}</div></div>`;
+            if(ss[2]) html += `<div class="podium-item p3"><img src="${ss[2].avatarUrl}"><div class="podium-name">🥉 ${ss[2].nickname}</div><div class="podium-power">Poder: ${ss[2].power}<br>⚔️ Kills: ${ss[2].kills}</div></div>`;
+            pCon.innerHTML = html === "" ? "<h2 style='color: white;'>Arena vazia!</h2>" : html;
+            if (autoRestartConfig) {
+                aMsg.style.display = "block"; let c = podiumDurationConfig; rCnt.innerText = c;
+                restartTimerInterval = setInterval(() => {
+                    c--; rCnt.innerText = c;
+                    if (c <= 0) {
+                        clearInterval(restartTimerInterval);
+                        let cfgStr = localStorage.getItem('snakeConfig');
+                        let data = cfgStr ? JSON.parse(cfgStr) : {};
+                        data.reset_flag = Date.now();
+                        localStorage.setItem('snakeConfig', JSON.stringify(data));
+                    }
+                }, 1000);
+            } else aMsg.style.display = "none";
+        }
+
+        function formatTime(secs) { return `${Math.floor(secs / 60).toString().padStart(2, '0')}:${(secs % 60).toString().padStart(2, '0')}`; }
+
+        let podiumDurationConfig = 10;
+
+        function carregarConfiguracoes() {
+            let cfgStr = localStorage.getItem('snakeConfig');
+
+            // Injeta defaults caso não exista
+            let d = cfgStr ? JSON.parse(cfgStr) : {
+                default_duration: 300, podium_duration: 5, auto_restart: true,
+                gift_x2: "rosa", gift_speed: "tiktok", gift_shield: "chapeu"
+            };
+
+            if (d) {
+                autoRestartConfig = d.auto_restart || false;
+                podiumDurationConfig = d.podium_duration || 10;
+                configPowers.x2 = d.gift_x2 || "rosa";
+                configPowers.speed = d.gift_speed || "tiktok";
+                configPowers.shield = d.gift_shield || "chapeu";
+
+                if(d.music_vol !== undefined) bgMusic.volume = d.music_vol / 100;
+                if(d.sfx_vol !== undefined) eatSfx.volume = d.sfx_vol / 100;
+
+                if (urlParams.get('bg') !== 'transparente') {
+                    if (d.bg_url) { document.body.style.backgroundImage = `url('${d.bg_url}')`; }
+                    else { document.body.style.backgroundImage = "none"; }
+                }
+
+                if(d.bg_size) document.body.style.backgroundSize = `${d.bg_size}%`;
+
+                // Renderiza a Tela do Ranking
+                let rStr = localStorage.getItem('snakeRankings');
+                let rData = rStr ? JSON.parse(rStr) : {diario:{vitorias:{}, kills:{}, tempo:{}}, semanal:{vitorias:{}, kills:{}, tempo:{}}, mensal:{vitorias:{}, kills:{}, tempo:{}}, geral:{vitorias:{}, kills:{}, tempo:{}}};
+                let per = d.display_periodo || "diario";
+                let nomePer = per === "semanal" ? "RANKING DA SEMANA" : per === "mensal" ? "RANKING DESTE MÊS" : per === "geral" ? "RANKING GERAL (HISTÓRICO)" : "RANKING DE HOJE";
+                let dataDict = rData[per] || {vitorias: {}, kills: {}, tempo: {}};
+
+                let modo = d.display_mode || 'game';
+                if (modo !== 'game' && document.getElementById('podium-screen').style.display !== 'flex') {
+                    if (modo === 'rank_vitorias') renderizarRankingUI("🏆 TOP VITÓRIAS", dataDict.vitorias, "gold", "Vitórias", nomePer);
+                    if (modo === 'rank_kills') renderizarRankingUI("⚔️ MAIORES ASSASSINOS", dataDict.kills, "#ff4757", "Kills", nomePer);
+                    if (modo === 'rank_tempo') renderizarRankingUI("⏱️ TEMPO SOBREVIVIDO", dataDict.tempo, "#3498db", "s", nomePer);
+                } else {
+                    document.getElementById('ranking-view').style.display = 'none';
+                    document.getElementById('game-view').style.display = 'block';
+                }
+
+                if (d.reset_flag && d.reset_flag !== lastResetFlag) {
+                    lastResetFlag = d.reset_flag;
+                    if (restartTimerInterval) clearInterval(restartTimerInterval);
+                    pScr.style.display = "none";
+                    for (let id in snakes) snakes[id].die();
+                    snakes = {}; jailedUsers = {}; particles = []; floatingTexts = [];
+                    timeLeftAtual = d.default_duration || 300;
+                    if (document.getElementById('start-overlay').style.display === 'none') isGameActive = true;
+                }
+            }
+        }
+
+        setInterval(() => {
+            carregarConfiguracoes();
+
+            if (isGameActive && timeLeftAtual > 0) {
+                timeLeftAtual--;
+            }
+
+            timerEl.innerText = formatTime(timeLeftAtual);
+
+            if (timeLeftAtual === 0 && isGameActive && Object.keys(snakes).length > 0) {
+                showPodium();
+            }
+        }, 1000);
+
+        let conexaoNuvemEstabelecida = false;
+        let wsNuvem = null;
+        let wsTikfinity = null;
+
+        function processarEvento(d) {
+            if (!isGameActive) return;
+            if (!d.data || !d.data.uniqueId) return;
+            const u = d.data, uid = u.uniqueId, nn = u.nickname || uid, av = u.profilePicUrl || u.profilePictureUrl;
+            let gN = (d.event === "gift" && u.giftName) ? u.giftName.normalize('NFD').replace(/[\u0300-\u036f]/g, "").toLowerCase().trim() : "";
+
+            if (jailedUsers[uid]) {
+                if (d.event === "gift") {
+                    delete jailedUsers[uid]; snakes[uid] = new Snake(uid, nn, av); snakes[uid].basePower = 0;
+                    if (gN === configPowers.x2) snakes[uid].applyPower('x2', 30);
+                    else if (gN === configPowers.speed) snakes[uid].applyPower('speed', 15);
+                    else if (gN === configPowers.shield) snakes[uid].applyPower('shield', 30);
+                    snakes[uid].addGift(u.diamondCount || 1, u.giftPictureUrl || ICON_GIFT_FALLBACK);
+                }
+            } else {
+                if (!snakes[uid]) snakes[uid] = new Snake(uid, nn, av);
+                if (d.event === "like") snakes[uid].addTaps(u.likeCount || 1);
+                if (d.event === "gift") {
+                    if (gN === configPowers.x2) snakes[uid].applyPower('x2', 30);
+                    else if (gN === configPowers.speed) snakes[uid].applyPower('speed', 15);
+                    else if (gN === configPowers.shield) snakes[uid].applyPower('shield', 30);
+                    snakes[uid].addGift(u.diamondCount || 1, u.giftPictureUrl || ICON_GIFT_FALLBACK);
+                }
+            }
+        }
+
+        function conectarNuvem() {
+            let targetUser = window.rdmUser;
+            if (!targetUser || targetUser === "visitante") return;
+            if (conexaoNuvemEstabelecida || (wsNuvem && wsNuvem.readyState === WebSocket.CONNECTING)) return;
+
+            wsNuvem = new WebSocket("wss://torre-de-controle-rdm.onrender.com:443/");
+            wsNuvem.onopen = () => {
+                conexaoNuvemEstabelecida = true;
+                wsNuvem.send(JSON.stringify({ action: "connect", tiktok_user: targetUser }));
+                document.getElementById("status").innerText = "RDM Nuvem: CONECTADO";
+                document.getElementById("status").style.color = "cyan";
+            };
+            wsNuvem.onmessage = (e) => { try { processarEvento(JSON.parse(e.data)); } catch(err) {} };
+            wsNuvem.onclose = () => { conexaoNuvemEstabelecida = false; wsNuvem = null; };
+        }
+
+        function verificarEConectar() {
+            if (!wsTikfinity || wsTikfinity.readyState === WebSocket.CLOSED) {
+                wsTikfinity = new WebSocket("ws://127.0.0.1:21213/");
+                wsTikfinity.onopen = () => {
+                    if (wsNuvem) { wsNuvem.close(); wsNuvem = null; conexaoNuvemEstabelecida = false; }
+                    document.getElementById("status").innerText = "TikFinity: CONECTADO";
+                    document.getElementById("status").style.color = "lime";
+                };
+                wsTikfinity.onmessage = (e) => { try { processarEvento(JSON.parse(e.data)); } catch(err) {} };
+                wsTikfinity.onerror = () => { conectarNuvem(); };
+                wsTikfinity.onclose = () => { wsTikfinity = null; document.getElementById("status").innerText = "Tentando Conexão..."; document.getElementById("status").style.color = "yellow"; };
+            } else if (wsTikfinity.readyState === WebSocket.OPEN) {
+                if (wsNuvem) { wsNuvem.close(); wsNuvem = null; conexaoNuvemEstabelecida = false; }
+            }
+        }
+        setInterval(verificarEConectar, 2000);
+
+        function gameLoop() {
+            ctx.clearRect(0, 0, WIDTH, HEIGHT);
+            particles = particles.filter(p => p.life > 0); particles.forEach(p => { p.update(); p.draw(ctx); });
+            floatingTexts = floatingTexts.filter(t => t.life > 0); floatingTexts.forEach(t => { t.update(); t.draw(ctx); });
+            if (isGameActive) { for (let id in snakes) { snakes[id].update(snakes); snakes[id].drawTail(ctx); } checkCollisions(); }
+            requestAnimationFrame(gameLoop);
+        }
+        gameLoop();
+
+        window.addEventListener('resize', () => {
+            WIDTH = window.innerWidth; HEIGHT = window.innerHeight; canvas.width = WIDTH; canvas.height = HEIGHT;
+            for (let id in snakes) { let s = snakes[id]; if (s.x > WIDTH - HEAD_RADIUS) s.x = WIDTH - HEAD_RADIUS; if (s.y > HEIGHT - HEAD_RADIUS) s.y = HEIGHT - HEAD_RADIUS; }
+        });
+    </script>
+
+    <!-- FIREBASE SYNC DAAZ -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+        const firebaseConfig = { apiKey: "AIzaSyB2LNWktWEwYLuZxwr8oc9NpcjFz3GU5qc", authDomain: "authrdm-a82a6.firebaseapp.com", databaseURL: "https://authrdm-a82a6-default-rtdb.firebaseio.com", projectId: "authrdm-a82a6" };
+        const app = initializeApp(firebaseConfig); const db = getDatabase(app);
+
+        const rdmUser = localStorage.getItem('rdm_user_tiktok') || localStorage.getItem('rdm_user') || "visitante";
+        const safeUser = rdmUser.replace(/[.#$\[\]]/g, "_");
+
+        onValue(ref(db, `usuarios/${safeUser}/controle_remoto/snake_config`), (snapshot) => {
+            if(snapshot.exists()) {
+                localStorage.setItem('snakeConfig', JSON.stringify(snapshot.val()));
+            }
+        });
+    </script>
+</body>
+</html>

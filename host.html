@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Painel de Controle - Host</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #222; color: white; padding: 20px; }
+        .card { background: #333; padding: 20px; border-radius: 10px; max-width: 500px; margin-bottom: 20px; }
+        input[type="text"], input[type="number"] { width: 100%; padding: 10px; margin: 10px 0; box-sizing: border-box; border-radius: 5px; border: none; font-size: 16px; }
+        button { padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 16px; width: 100%; margin-top: 5px;}
+        .btn-green { background: #00cc66; color: white; }
+        .btn-blue { background: #0088ff; color: white; }
+        .btn-red { background: #ff3333; color: white; }
+        .checkbox-container { display: flex; align-items: center; font-size: 18px; margin-top: 10px; cursor: pointer; }
+        .checkbox-container input { width: 25px; height: 25px; margin-right: 15px; cursor: pointer;}
+        .power-label { font-size: 14px; font-weight: bold; margin-top: 15px; display: block;}
+        input[type="range"] { width: 100%; cursor: pointer; }
+        input[type="file"] { margin: 10px 0; color: #ccc; }
+        .flex-row { display: flex; gap: 10px; align-items: center;}
+    </style>
+</head>
+<body>
+    <h1 style="margin-bottom: 5px; text-align: center;">Painel de Controle 🎛️</h1>
+    <div id="licenca-info" style="text-align: center; font-size: 0.9em; color: #2ed573; font-weight: bold; margin-bottom: 20px;">Carregando licença...</div>
+
+    <!-- CONTROLES DE RANKING DAAZ -->
+    <div class="card">
+        <h3>🏆 Rankings e Tela</h3>
+        <div class="flex-row" style="margin-bottom: 10px;">
+            <select id="rankingPeriodo" onchange="updateConfig({display_periodo: this.value})" style="flex: 1; padding: 10px; background: #222; color: white; border: 1px solid #555; border-radius: 5px;">
+                <option value="diario">Apenas Hoje (Diário)</option>
+                <option value="semanal">Esta Semana</option>
+                <option value="mensal">Este Mês</option>
+                <option value="geral">Histórico Geral</option>
+            </select>
+            <button class="btn-red" onclick="if(confirm('Zerar ranking de HOJE?')) updateConfig({limpar_ranking: 'diario'})" style="width: auto; margin-top: 0;">🗑️ Limpar Hoje</button>
+        </div>
+        <div style="display: flex; gap: 5px; flex-wrap: wrap;">
+            <button class="btn-blue" style="flex: 1;" onclick="updateConfig({display_mode: 'game'})">🎮 Jogo</button>
+            <button class="btn-green" style="flex: 1;" onclick="updateConfig({display_mode: 'rank_vitorias'})">🏆 Vitórias</button>
+            <button class="btn-green" style="flex: 1;" onclick="updateConfig({display_mode: 'rank_kills'})">⚔️ Kills</button>
+            <button class="btn-green" style="flex: 1;" onclick="updateConfig({display_mode: 'rank_tempo'})">⏱️ Tempo</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>🔗 Link para OBS / TikTok Live Studio</h3>
+        <p style="font-size: 0.85rem; color: #ccc; margin-top: 0; margin-bottom: 5px;">Copie o link abaixo e cole no navegador. Ele já vai abrir com fundo transparente.</p>
+        <div class="flex-row">
+            <input type="text" id="obs-link" readonly style="margin-bottom: 0; color: #f39c12; font-weight: bold; background: #222;">
+            <button onclick="copiarLinkOBS()" style="background: #3498db; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; font-weight: bold; width: auto;">📋 COPIAR</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>🎧 Volumes do Jogo</h3>
+        <span class="power-label" style="color: #ccc;">Música de Fundo: <span id="valMusic">30</span>%</span>
+        <input type="range" id="volMusic" min="0" max="100" oninput="document.getElementById('valMusic').innerText=this.value" onchange="updateConfig({music_vol: parseInt(this.value)})">
+
+        <span class="power-label" style="color: #ccc;">Efeitos Especiais (SFX): <span id="valSfx">100</span>%</span>
+        <input type="range" id="volSfx" min="0" max="100" oninput="document.getElementById('valSfx').innerText=this.value" onchange="updateConfig({sfx_vol: parseInt(this.value)})">
+    </div>
+
+    <div class="card">
+        <h3>🖼️ Fundo da Arena</h3>
+        <span class="power-label" style="color: #0f0;">Opção 1: Usar imagem do seu PC</span>
+        <input type="file" id="bgFile" accept="image/*">
+        <button class="btn-blue" onclick="uploadLocalBg(this)">⬆️ Aplicar Fundo do PC</button>
+
+        <hr style="border-color: #555; margin: 15px 0;">
+
+        <span class="power-label" style="color: #ff9900;">Opção 2: Colar Link da Internet</span>
+        <input type="text" id="bgUrl" placeholder="Cole o link da imagem (URL)">
+        <button class="btn-green" onclick="updateConfig({bg_url: document.getElementById('bgUrl').value})">Aplicar Link</button>
+
+        <hr style="border-color: #555; margin: 15px 0;">
+        <span class="power-label" style="color: #ccc;">Ajuste de Zoom do Fundo: <span id="zoomValue">100</span>%</span>
+        <input type="range" id="bgZoom" min="10" max="300" oninput="document.getElementById('zoomValue').innerText = this.value" onchange="updateConfig({bg_size: parseInt(this.value)})">
+    </div>
+
+    <div class="card">
+        <h3>🎁 Presentes de Poderes</h3>
+        <p style="font-size: 13px; color: #aaa;">Digite o nome do presente. Tudo que for escrito será aceito no TikTok.</p>
+
+        <span class="power-label" style="color: #ff00ff;">🟣 Poder x2 (Dura 30 Segundos):</span>
+        <input type="text" id="giftX2" placeholder="Ex: rosa">
+
+        <span class="power-label" style="color: #00ff00;">🟢 Velocidade x2 (Dura 15 Segundos):</span>
+        <input type="text" id="giftSpeed" placeholder="Ex: tiktok">
+
+        <span class="power-label" style="color: #00ffff;">🔵 Escudo Imortal (Dura 30 Segundos):</span>
+        <input type="text" id="giftShield" placeholder="Ex: chapeu">
+
+        <button class="btn-green" onclick="updateConfig({gift_x2: document.getElementById('giftX2').value, gift_speed: document.getElementById('giftSpeed').value, gift_shield: document.getElementById('giftShield').value})">Salvar Presentes</button>
+    </div>
+
+    <div class="card">
+        <h3>⏱️ Tempo e Auto-Restart</h3>
+        <input type="number" id="timeSecs" placeholder="Tempo de Batalha (Ex: 300 = 5 min)">
+        <button class="btn-green" onclick="updateConfig({default_duration: parseInt(document.getElementById('timeSecs').value), reset: true})">Salvar Tempo / Iniciar</button>
+
+        <label class="checkbox-container">
+            <input type="checkbox" id="autoRestart" onchange="updateConfig({auto_restart: this.checked})">
+            Auto-Restart Ativado
+        </label>
+        <input type="number" id="podiumSecs" placeholder="Segundos na tela de Pódio (Ex: 10)">
+        <button class="btn-green" onclick="updateConfig({podium_duration: parseInt(document.getElementById('podiumSecs').value)})">Salvar Tempo do Pódio</button>
+    </div>
+
+    <div class="card" style="border: 2px solid #ff3333;">
+        <h3>Zerar Partida Manualmente</h3>
+        <button class="btn-red" onclick="updateConfig({reset: true})">💥 Limpar Arena Agora</button>
+    </div>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.has('u') && urlParams.has('p')) {
+            localStorage.setItem('rdm_user', urlParams.get('u'));
+            localStorage.setItem('rdm_perfil', urlParams.get('p'));
+        }
+
+        function verificarStatusRDM() {
+            let user = localStorage.getItem('rdm_user_tiktok') || localStorage.getItem('rdm_user');
+            let perfil = localStorage.getItem('rdm_perfil');
+            let lic = document.getElementById('licenca-info');
+            if (user && perfil) {
+                if(lic) { lic.innerText = `✅ Logado como: ${user} (${perfil.toUpperCase()})`; lic.style.color = "#2ecc71"; }
+            } else {
+                if(lic) { lic.innerText = "❌ Desconectado. Faça login no site RDM Studio."; lic.style.color = "#e74c3c"; }
+            }
+        }
+        verificarStatusRDM();
+        setInterval(verificarStatusRDM, 5000);
+
+        function atualizarLinkOBS() {
+            let user = localStorage.getItem('rdm_user_tiktok') || localStorage.getItem('rdm_user') || "visitante";
+            let baseURL = window.location.href.split('?')[0].replace('host.html', 'index.html');
+            document.getElementById('obs-link').value = `${baseURL}?u=${user}&p=pro&bg=transparente`;
+        }
+        atualizarLinkOBS();
+
+        function copiarLinkOBS() {
+            let input = document.getElementById('obs-link');
+            input.select(); document.execCommand("copy");
+            alert("✅ Link copiado! Pode colar no TikTok Live Studio ou OBS.");
+        }
+
+        function carregarPainel() {
+            let cfgStr = localStorage.getItem('snakeConfig');
+            // Valores Padrões da Primeira Vez
+            let data = cfgStr ? JSON.parse(cfgStr) : {
+                bg_size: 100, music_vol: 30, sfx_vol: 100,
+                default_duration: 300, podium_duration: 5, auto_restart: true,
+                gift_x2: "rosa", gift_speed: "tiktok", gift_shield: "chapeu"
+            };
+
+            if(data.bg_url && !data.bg_url.startsWith('data:image')) document.getElementById('bgUrl').value = data.bg_url;
+            if(data.bg_size) { document.getElementById('bgZoom').value = data.bg_size; document.getElementById('zoomValue').innerText = data.bg_size; }
+            if(data.music_vol !== undefined) { document.getElementById('volMusic').value = data.music_vol; document.getElementById('valMusic').innerText = data.music_vol; }
+            if(data.sfx_vol !== undefined) { document.getElementById('volSfx').value = data.sfx_vol; document.getElementById('valSfx').innerText = data.sfx_vol; }
+
+            if(data.default_duration) document.getElementById('timeSecs').value = data.default_duration;
+            if(data.podium_duration) document.getElementById('podiumSecs').value = data.podium_duration;
+            if(data.gift_x2) document.getElementById('giftX2').value = data.gift_x2;
+            if(data.gift_speed) document.getElementById('giftSpeed').value = data.gift_speed;
+            if(data.gift_shield) document.getElementById('giftShield').value = data.gift_shield;
+            if(data.auto_restart !== undefined) document.getElementById('autoRestart').checked = data.auto_restart;
+        }
+        window.onload = carregarPainel;
+
+        function updateConfig(newData) {
+            // Regra do Ranking (DAAZ)
+            if (newData.limpar_ranking) {
+                let rStr = localStorage.getItem('snakeRankings');
+                if (rStr) {
+                    let rankings = JSON.parse(rStr);
+                    rankings[newData.limpar_ranking] = {vitorias:{}, kills:{}, tempo:{}};
+                    localStorage.setItem('snakeRankings', JSON.stringify(rankings));
+                    alert("Ranking apagado com sucesso!");
+                }
+                return;
+            }
+
+            let cfgStr = localStorage.getItem('snakeConfig');
+            let data = cfgStr ? JSON.parse(cfgStr) : {};
+
+            for(let key in newData) data[key] = newData[key];
+            if(newData.reset) data.reset_flag = Date.now();
+
+            localStorage.setItem('snakeConfig', JSON.stringify(data));
+
+            try {
+                let btn = window.event ? window.event.target : null;
+                if(btn && btn.tagName === "BUTTON") {
+                    let txt = btn.innerText; btn.innerText = "Salvo! ✔️"; setTimeout(() => btn.innerText = txt, 1500);
+                }
+            } catch(e) {
+                // Ignora o erro se não houver botão (como nas barras de volume)
+            }
+        }
+
+        function uploadLocalBg(btn) {
+            let fileInput = document.getElementById('bgFile');
+            if(fileInput.files.length === 0) return alert("Selecione um arquivo primeiro!");
+
+            let file = fileInput.files[0];
+            let reader = new FileReader();
+
+            let txt = btn.innerText;
+            btn.innerText = "Aplicando...";
+
+            reader.onload = function(e) {
+                updateConfig({ bg_url: e.target.result });
+                document.getElementById('bgUrl').value = "Imagem do Computador Aplicada";
+                btn.innerText = "Sucesso! ✔️";
+                setTimeout(() => btn.innerText = txt, 2000);
+            };
+            reader.readAsDataURL(file);
+        }
+    </script>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+        const firebaseConfig = { apiKey: "AIzaSyB2LNWktWEwYLuZxwr8oc9NpcjFz3GU5qc", authDomain: "authrdm-a82a6.firebaseapp.com", databaseURL: "https://authrdm-a82a6-default-rtdb.firebaseio.com", projectId: "authrdm-a82a6" };
+        const app = initializeApp(firebaseConfig); const db = getDatabase(app);
+
+        const originalUpdate = window.updateConfig;
+        window.updateConfig = function(newData) {
+            originalUpdate(newData);
+            const rdmUser = localStorage.getItem('rdm_user_tiktok') || localStorage.getItem('rdm_user') || "visitante";
+            const safeUser = rdmUser.replace(/[.#$\[\]]/g, "_");
+
+            let configStr = localStorage.getItem('snakeConfig');
+            if(configStr) set(ref(db, `usuarios/${safeUser}/controle_remoto/snake_config`), JSON.parse(configStr));
+        };
+    </script>
+</body>
+</html>
